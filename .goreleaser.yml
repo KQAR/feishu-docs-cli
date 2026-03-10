@@ -1,0 +1,51 @@
+version: 2
+
+project_name: feishu-docs
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: .
+    binary: feishu-docs
+    ldflags:
+      - -s -w
+      - -X github.com/KQAR/feishu-docs/internal/version.Version={{.Version}}
+      - -X github.com/KQAR/feishu-docs/internal/version.GitCommit={{.ShortCommit}}
+      - -X github.com/KQAR/feishu-docs/internal/version.BuildDate={{.Date}}
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+brews:
+  - repository:
+      owner: KQAR
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/KQAR/feishu-docs
+    description: 飞书文档与知识库 CLI 管理工具
+    license: MIT
+    install: |
+      bin.install "feishu-docs"
+    test: |
+      system "#{bin}/feishu-docs", "version"
