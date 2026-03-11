@@ -39,11 +39,11 @@ func newWikiResolveCmd() *cobra.Command {
 				output.Errorf("无法从 URL 提取 wiki token: %s", wikiURL)
 			}
 
-			req := larkwiki.NewGetSpaceNodeReqBuilder().
+			req := larkwiki.NewGetNodeSpaceReqBuilder().
 				Token(token).
 				Build()
 
-			resp, err := larkClient.Wiki.SpaceNode.Get(context.Background(), req)
+			resp, err := larkClient.Wiki.Space.GetNode(context.Background(), req)
 			if err != nil {
 				output.Errorf("获取 wiki 节点信息失败: %v", err)
 			}
@@ -65,7 +65,7 @@ func newWikiResolveCmd() *cobra.Command {
 			fmt.Printf("Obj Type:      %s\n", deref(node.ObjType))
 			fmt.Printf("Obj Token:     %s\n", deref(node.ObjToken))
 			fmt.Printf("节点类型:      %s\n", deref(node.NodeType))
-			fmt.Printf("父节点 Token:  %s\n", deref(node.ParentToken))
+			fmt.Printf("父节点 Token:  %s\n", deref(node.ParentNodeToken))
 			fmt.Printf("空间 ID:       %s\n", deref(node.SpaceId))
 
 			// JSON 输出
@@ -75,7 +75,7 @@ func newWikiResolveCmd() *cobra.Command {
 				"obj_type":     deref(node.ObjType),
 				"obj_token":    deref(node.ObjToken),
 				"node_type":    deref(node.NodeType),
-				"parent_token": deref(node.ParentToken),
+				"parent_node_token": deref(node.ParentNodeToken),
 				"space_id":     deref(node.SpaceId),
 			})
 
@@ -132,5 +132,4 @@ func extractWikiToken(input string) string {
 	return ""
 }
 
-// 添加 strings import
-import "strings"
+
