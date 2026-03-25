@@ -36,7 +36,7 @@ var rootCmd = &cobra.Command{
 var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "初始化配置文件",
-	Long:  "在 ~/.config/feishu-docs/config.json 创建配置模板，需手动填入 app_id 和 app_secret。",
+	Long:  "在 ~/.config/feishu-docs-cli/config.json 创建配置模板，需手动填入 app_id 和 app_secret。",
 	Run: func(cmd *cobra.Command, args []string) {
 		path, err := config.EnsureConfigFile()
 		if err != nil {

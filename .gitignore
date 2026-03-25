@@ -1,3 +1,4 @@
 feishu-docs-cli
 *.exe
 dist/
+.env

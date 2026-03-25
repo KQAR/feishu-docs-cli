@@ -24,10 +24,7 @@ func newDocCmd() *cobra.Command {
 		newDocContentCmd(),
 		newDocListBlocksCmd(),
 		newDocGetBlockCmd(),
-		newDocInsertBlockCmd(),
-		newDocUpdateBlockCmd(),
-		newDocUpdateV2Cmd(),
-		newDocDeleteBlocksCmd(),
+		newDocUpdateCmd(),
 	)
 
 	return docCmd
@@ -78,6 +75,7 @@ func newDocGetCmd() *cobra.Command {
 		Use:   "get",
 		Short: "获取文档信息",
 		Run: func(cmd *cobra.Command, args []string) {
+			documentID = resolveDocumentID(documentID)
 			req := larkdocx.NewGetDocumentReqBuilder().
 				DocumentId(documentID).
 				Build()
@@ -94,7 +92,7 @@ func newDocGetCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&documentID, "id", "i", "", "文档 ID (必填)")
+	cmd.Flags().StringVarP(&documentID, "id", "i", "", "文档 ID 或 wiki 链接 (必填)")
 	cmd.MarkFlagRequired("id")
 
 	return cmd
@@ -108,6 +106,7 @@ func newDocContentCmd() *cobra.Command {
 		Use:   "content",
 		Short: "获取文档纯文本内容",
 		Run: func(cmd *cobra.Command, args []string) {
+			documentID = resolveDocumentID(documentID)
 			req := larkdocx.NewRawContentDocumentReqBuilder().
 				DocumentId(documentID).
 				Lang(lang).
@@ -127,7 +126,7 @@ func newDocContentCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&documentID, "id", "i", "", "文档 ID (必填)")
+	cmd.Flags().StringVarP(&documentID, "id", "i", "", "文档 ID 或 wiki 链接 (必填)")
 	cmd.Flags().IntVar(&lang, "lang", 0, "语言 (0: 中文, 1: 英文, 2: 日文)")
 	cmd.MarkFlagRequired("id")
 
@@ -142,6 +141,7 @@ func newDocListBlocksCmd() *cobra.Command {
 		Use:   "blocks",
 		Short: "列出文档所有块",
 		Run: func(cmd *cobra.Command, args []string) {
+			documentID = resolveDocumentID(documentID)
 			builder := larkdocx.NewListDocumentBlockReqBuilder().
 				DocumentId(documentID).
 				PageSize(pageSize)
@@ -164,52 +164,10 @@ func newDocListBlocksCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&documentID, "id", "i", "", "文档 ID (必填)")
+	cmd.Flags().StringVarP(&documentID, "id", "i", "", "文档 ID 或 wiki 链接 (必填)")
 	cmd.Flags().IntVarP(&pageSize, "page-size", "n", 50, "每页数量")
 	cmd.Flags().StringVar(&pageToken, "page-token", "", "分页标记")
 	cmd.MarkFlagRequired("id")
-
-	return cmd
-}
-
-func newDocDeleteBlocksCmd() *cobra.Command {
-	var documentID, blockID string
-	var startIndex, endIndex int
-
-	cmd := &cobra.Command{
-		Use:   "delete-blocks",
-		Short: "删除文档子块",
-		Long:  "删除指定块下指定范围的子块。",
-		Run: func(cmd *cobra.Command, args []string) {
-			req := larkdocx.NewBatchDeleteDocumentBlockChildrenReqBuilder().
-				DocumentId(documentID).
-				BlockId(blockID).
-				Body(larkdocx.NewBatchDeleteDocumentBlockChildrenReqBodyBuilder().
-					StartIndex(startIndex).
-					EndIndex(endIndex).
-					Build()).
-				Build()
-
-			resp, err := larkClient.Docx.DocumentBlockChildren.BatchDelete(context.Background(), req)
-			if err != nil {
-				output.Errorf("删除块失败: %v", err)
-			}
-			if !resp.Success() {
-				output.Errorf("删除块失败 [%d]: %s (request_id: %s)", resp.Code, resp.Msg, resp.RequestId())
-			}
-
-			output.Success("块删除成功")
-		},
-	}
-
-	cmd.Flags().StringVarP(&documentID, "doc-id", "d", "", "文档 ID (必填)")
-	cmd.Flags().StringVarP(&blockID, "block-id", "b", "", "父块 ID (必填)")
-	cmd.Flags().IntVar(&startIndex, "start", 0, "起始索引 (必填)")
-	cmd.Flags().IntVar(&endIndex, "end", 0, "结束索引 (必填)")
-	cmd.MarkFlagRequired("doc-id")
-	cmd.MarkFlagRequired("block-id")
-	cmd.MarkFlagRequired("start")
-	cmd.MarkFlagRequired("end")
 
 	return cmd
 }

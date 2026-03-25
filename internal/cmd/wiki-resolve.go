@@ -132,4 +132,37 @@ func extractWikiToken(input string) string {
 	return ""
 }
 
+// resolveDocumentID 检查输入是否为 wiki 链接，如果是则解析为实际文档 ID
+func resolveDocumentID(input string) string {
+	if !strings.Contains(input, "/wiki/") && !strings.HasPrefix(input, "wiki/") {
+		return input
+	}
 
+	token := extractWikiToken(input)
+	if token == "" {
+		return input
+	}
+
+	req := larkwiki.NewGetNodeSpaceReqBuilder().
+		Token(token).
+		Build()
+
+	resp, err := larkClient.Wiki.Space.GetNode(context.Background(), req)
+	if err != nil {
+		output.Errorf("解析 wiki 链接失败: %v", err)
+	}
+	if !resp.Success() {
+		output.Errorf("解析 wiki 链接失败 [%d]: %s (request_id: %s)", resp.Code, resp.Msg, resp.RequestId())
+	}
+
+	if resp.Data == nil || resp.Data.Node == nil || resp.Data.Node.ObjToken == nil {
+		output.Errorf("wiki 节点不存在或无权访问")
+	}
+
+	objType := deref(resp.Data.Node.ObjType)
+	if objType != "docx" {
+		output.Errorf("wiki 节点类型为 %s，当前仅支持 docx 类型文档", objType)
+	}
+
+	return *resp.Data.Node.ObjToken
+}

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 )
 
-const defaultConfigPath = ".config/feishu-docs/config.json"
+const defaultConfigPath = ".config/feishu-docs-cli/config.json"
 
 // Config 飞书应用配置
 type Config struct {
@@ -15,7 +15,7 @@ type Config struct {
 	AppSecret string `json:"app_secret"`
 }
 
-// Load 从 ~/.config/feishu-docs/config.json 加载配置
+// Load 从 ~/.config/feishu-docs-cli/config.json 加载配置
 func Load() (*Config, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -58,9 +58,8 @@ func EnsureConfigFile() (string, error) {
 		return configPath, nil
 	}
 
-	configDir := filepath.Dir(configPath)
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		return "", fmt.Errorf("创建配置目录失败: %w", err)
+	if err := ensureConfigDir(configPath); err != nil {
+		return "", err
 	}
 
 	template := Config{
@@ -78,6 +77,14 @@ func EnsureConfigFile() (string, error) {
 	}
 
 	return configPath, nil
+}
+
+func ensureConfigDir(configPath string) error {
+	configDir := filepath.Dir(configPath)
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return fmt.Errorf("创建配置目录失败: %w", err)
+	}
+	return nil
 }
 
 func (c *Config) validate() error {
