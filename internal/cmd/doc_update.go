@@ -47,16 +47,19 @@ func newDocUpdateAppendCmd() *cobra.Command {
 		Use:   "append",
 		Short: "追加 Markdown 块",
 		Long: `将 Markdown 内容解析为飞书文档块并写入指定父块。
+--doc-id 支持直接传入 wiki 链接，自动解析为文档 ID。
+--markdown 传入 - 可从 stdin 管道读取内容。
 
 支持的 Markdown 语法:
-  # 标题1
-  ## 标题2
-  ### 标题3
-  - 无序列表
-  * 无序列表
+  # ~ ###### 标题 (heading1 ~ heading6)
+  - 无序列表 / * 无序列表
   1. 有序列表
-  [ ] 待办事项
-  [x] 已完成待办
+  [ ] 待办事项 / [x] 已完成待办
+  > 引用（支持多行）
+  --- / *** / ___ 分割线
+  ` + "```" + `
+  多行代码块
+  ` + "```" + `
   普通文本`,
 		Run: func(cmd *cobra.Command, args []string) {
 			documentID = resolveDocumentID(documentID)
