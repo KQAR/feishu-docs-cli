@@ -113,7 +113,11 @@ func newDocTableCreateCmd() *cobra.Command {
 				output.Errorf("创建表格失败 [%d]: %s (request_id: %s)", resp.Code, resp.Msg, resp.RequestId())
 			}
 
-			output.Success(fmt.Sprintf("表格创建成功 (%d 行 x %d 列)", len(matrix), len(matrix[0])))
+			tableBlockID := ""
+			if resp.Data != nil && len(resp.Data.Children) > 0 && resp.Data.Children[0].BlockId != nil {
+				tableBlockID = *resp.Data.Children[0].BlockId
+			}
+			output.Success(fmt.Sprintf("表格创建成功 (%d 行 x %d 列), table_id: %s", len(matrix), len(matrix[0]), tableBlockID))
 			output.JSON(resp.Data)
 		},
 	}
@@ -134,11 +138,12 @@ func newDocTableCreateCmd() *cobra.Command {
 }
 
 func newDocTableShowCmd() *cobra.Command {
-	var documentID, tableID string
+	var documentID, tableID, format string
 
 	cmd := &cobra.Command{
 		Use:   "show",
 		Short: "查看表格结构与内容",
+		Long:  "查看表格结构与内容。--format 支持 json(默认)、tsv、table 三种格式。",
 		Run: func(cmd *cobra.Command, args []string) {
 			documentID = resolveDocumentID(documentID)
 			snapshot, err := fetchTableSnapshot(documentID, tableID)
@@ -147,26 +152,38 @@ func newDocTableShowCmd() *cobra.Command {
 			}
 
 			values := buildTableValues(snapshot)
-			result := map[string]any{
-				"table_id":       tableID,
-				"rows":           snapshot.Rows,
-				"cols":           snapshot.Cols,
-				"header_row":     snapshot.HeaderRow,
-				"header_column":  snapshot.HeaderColumn,
-				"column_widths":  snapshot.ColumnWidths,
-				"merge_info":     snapshot.MergeInfo,
-				"cell_ids":       values.cellIDs,
-				"values":         values.values,
-				"table_block":    snapshot.Table,
-				"descendant_cnt": len(snapshot.Blocks),
-			}
 
-			output.JSON(result)
+			switch format {
+			case "tsv":
+				for _, row := range values.values {
+					fmt.Println(strings.Join(row, "\t"))
+				}
+			case "table":
+				if len(values.values) > 0 {
+					output.Table(values.values[0], values.values[1:])
+				}
+			default:
+				result := map[string]any{
+					"table_id":       tableID,
+					"rows":           snapshot.Rows,
+					"cols":           snapshot.Cols,
+					"header_row":     snapshot.HeaderRow,
+					"header_column":  snapshot.HeaderColumn,
+					"column_widths":  snapshot.ColumnWidths,
+					"merge_info":     snapshot.MergeInfo,
+					"cell_ids":       values.cellIDs,
+					"values":         values.values,
+					"table_block":    snapshot.Table,
+					"descendant_cnt": len(snapshot.Blocks),
+				}
+				output.JSON(result)
+			}
 		},
 	}
 
 	cmd.Flags().StringVarP(&documentID, "doc-id", "d", "", "文档 ID 或 wiki 链接 (必填)")
 	cmd.Flags().StringVarP(&tableID, "table-id", "t", "", "表格块 ID (必填)")
+	cmd.Flags().StringVarP(&format, "format", "f", "json", "输出格式: json, tsv, table")
 	cmd.MarkFlagRequired("doc-id")
 	cmd.MarkFlagRequired("table-id")
 

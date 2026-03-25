@@ -11,6 +11,7 @@
 - ✅ **Wiki 自动解析**：所有 `--doc-id` / `--id` 直接接受 wiki 链接，自动解析为文档 ID
 - ✅ **Markdown 支持**：标题、列表、代码块、分割线、引用、待办
 - ✅ **stdin 管道输入**：`--markdown -` 和 `--data -` 支持从管道读取内容
+- ✅ **API 限流保护**：自动节流 + 429 指数退避重试，批量操作不再失败
 - ✅ **知识库管理**：空间、节点的完整操作
 - ✅ **跨平台**：支持 macOS、Linux (amd64/arm64)
 
@@ -126,8 +127,10 @@ feishu-docs-cli doc update table create --doc-id <document_id> --data '[["姓名
 # 从 stdin 管道读取表格数据
 echo -e "A\tB\n1\t2" | feishu-docs-cli doc update table create --doc-id <document_id> --data -
 
-# 查看表格
+# 查看表格（默认 JSON，支持 --format tsv/table）
 feishu-docs-cli doc update table show --doc-id <document_id> --table-id <table_block_id>
+feishu-docs-cli doc update table show --doc-id <document_id> --table-id <table_block_id> --format tsv
+feishu-docs-cli doc update table show --doc-id <document_id> --table-id <table_block_id> --format table
 
 # 重写整张表格
 feishu-docs-cli doc update table write --doc-id <document_id> --table-id <table_block_id> --data $'A\tB\n1\t2'
