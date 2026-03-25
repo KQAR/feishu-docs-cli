@@ -37,7 +37,33 @@ func newDocUpdateTableCmd() *cobra.Command {
 	tableCmd := &cobra.Command{
 		Use:   "table",
 		Short: "表格构建与编辑",
-		Long:  "管理飞书文档中的表格，支持建表、查看、写入单元格、插入/删除行列和合并操作。",
+		Long: `管理飞书文档中的表格，支持建表、查看、写入单元格、插入/删除行列和合并操作。
+
+子命令:
+  create          创建表格并填充数据（TSV/JSON 矩阵）
+  show            查看表格 → json/tsv/table 三种格式
+  write           按矩阵重写整张表格
+  set-cell        更新单个单元格（--row/--col 从 0 开始）
+  insert-row      追加或插入行（--data 用 Tab 分隔）
+  insert-column   追加或插入列（--data 用换行分隔）
+  delete-rows     删除行（--start 起始索引 + --count 行数）
+  delete-columns  删除列（--start 起始索引 + --count 列数）
+  merge           合并单元格（--row-start/end --column-start/end 左闭右开）
+  unmerge         取消合并（--row --col 指向合并区域内的任意单元格）
+  props           更新属性（标题行/列、列宽）
+
+典型流程:
+  # 查看 table_id
+  feishu-docs-cli doc blocks -i <DOC>  # 找 block_type=31 的块
+
+  # 查看表格内容
+  feishu-docs-cli doc update table show -d <DOC> -t <TABLE_ID> -f tsv
+
+  # 更新单元格
+  feishu-docs-cli doc update table set-cell -d <DOC> -t <TABLE_ID> --row 1 --col 2 -x "新值"
+
+  # 追加行
+  printf '新行A\t新行B\t新行C' | feishu-docs-cli doc update table insert-row -d <DOC> -t <TABLE_ID> --data -`,
 	}
 
 	tableCmd.AddCommand(
@@ -67,12 +93,28 @@ func newDocTableCreateCmd() *cobra.Command {
 		Short: "创建表格",
 		Long: `创建文档表格，并可选地一次性填充单元格内容。
 
-数据格式默认使用 TSV：
-  A1\tB1
-  A2\tB2
+数据格式:
+  TSV（推荐）: 列用 Tab 分隔，行用换行分隔
+  JSON 矩阵:  [["A1","B1"],["A2","B2"]]
 
-也支持 JSON 矩阵：
-  [["A1","B1"],["A2","B2"]]`,
+常用标志:
+  --header-row     首行为标题行（加粗+灰底），几乎总是需要
+  --header-column  首列为标题列
+  --column-widths  指定每列宽度（像素），逗号分隔，如 240,180,180
+  --data -         从 stdin 读取数据（推荐用管道输入）
+
+示例:
+  # TSV 管道输入（推荐方式）
+  printf '姓名\t年龄\t城市\n张三\t25\t北京\n李四\t30\t上海' \
+    | feishu-docs-cli doc update table create -d <DOC> --header-row --data -
+
+  # JSON 矩阵
+  echo '[["Key","Value"],["version","1.0"]]' \
+    | feishu-docs-cli doc update table create -d <DOC> --header-row --data -
+
+  # 指定列宽
+  printf '指标\t数值\n覆盖率\t95%%' \
+    | feishu-docs-cli doc update table create -d <DOC> --header-row --column-widths 200,100 --data -`,
 		Run: func(cmd *cobra.Command, args []string) {
 			documentID = resolveDocumentID(documentID)
 			if blockID == "" {
@@ -143,7 +185,16 @@ func newDocTableShowCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "show",
 		Short: "查看表格结构与内容",
-		Long:  "查看表格结构与内容。--format 支持 json(默认)、tsv、table 三种格式。",
+		Long: `查看表格结构与内容。
+
+输出格式 (-f):
+  json   完整 JSON（含 cell_id、merge_info、column_widths 等元数据）
+  tsv    Tab 分隔文本（适合程序解析和管道传输）
+  table  对齐的表格格式（适合人类阅读）
+
+示例:
+  feishu-docs-cli doc update table show -d <DOC> -t <TABLE_ID> -f tsv
+  feishu-docs-cli doc update table show -d <DOC> -t <TABLE_ID> -f table`,
 		Run: func(cmd *cobra.Command, args []string) {
 			documentID = resolveDocumentID(documentID)
 			snapshot, err := fetchTableSnapshot(documentID, tableID)
@@ -196,7 +247,14 @@ func newDocTableWriteCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "write",
 		Short: "重写整张表格的单元格文本",
-		Long:  "按矩阵内容重写整张表格。每个单元格会清空后写入纯文本内容。",
+		Long: `按矩阵内容重写整张表格。每个单元格会清空后写入纯文本内容。
+注意: 矩阵维度必须与现有表格完全匹配（相同行列数）。
+数据格式同 table create: TSV（Tab 分隔）或 JSON 矩阵。
+每个单元格单独调用 API，内置限流保护，大表格可能较慢。
+
+示例:
+  printf '名称\t数值\n指标A\t95%%\n指标B\t87%%' \
+    | feishu-docs-cli doc update table write -d <DOC> -t <TABLE_ID> --data -`,
 		Run: func(cmd *cobra.Command, args []string) {
 			documentID = resolveDocumentID(documentID)
 			snapshot, err := fetchTableSnapshot(documentID, tableID)
@@ -284,6 +342,11 @@ func newDocTableInsertRowCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "insert-row",
 		Short: "插入表格行",
+		Long: `插入表格行。--row-index -1（默认）追加到末尾。
+--data 用 Tab 分隔列值，也支持 JSON 数组。不提供 --data 则插入空行。
+
+示例:
+  printf '张三\t25\t北京' | feishu-docs-cli doc update table insert-row -d <DOC> -t <TABLE_ID> --data -`,
 		Run: func(cmd *cobra.Command, args []string) {
 			documentID = resolveDocumentID(documentID)
 			if err := patchTableBlock(documentID, tableID, larkdocx.NewUpdateBlockRequestBuilder().
@@ -344,6 +407,11 @@ func newDocTableInsertColumnCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "insert-column",
 		Short: "插入表格列",
+		Long: `插入表格列。--column-index -1（默认）追加到末尾。
+--data 用换行分隔行值（从上到下），也支持 JSON 数组。不提供 --data 则插入空列。
+
+示例:
+  printf '职业\n工程师\n设计师' | feishu-docs-cli doc update table insert-column -d <DOC> -t <TABLE_ID> --data -`,
 		Run: func(cmd *cobra.Command, args []string) {
 			documentID = resolveDocumentID(documentID)
 			if err := patchTableBlock(documentID, tableID, larkdocx.NewUpdateBlockRequestBuilder().
@@ -476,6 +544,11 @@ func newDocTableMergeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "merge",
 		Short: "合并单元格",
+		Long: `合并单元格。索引为左闭右开: [row-start, row-end) x [column-start, column-end)。
+
+示例 — 合并第 2~3 行、第 1 列:
+  feishu-docs-cli doc update table merge -d <DOC> -t <TABLE_ID> \
+    --row-start 1 --row-end 3 --column-start 0 --column-end 1`,
 		Run: func(cmd *cobra.Command, args []string) {
 			documentID = resolveDocumentID(documentID)
 			if err := patchTableBlock(documentID, tableID, larkdocx.NewUpdateBlockRequestBuilder().
@@ -512,6 +585,10 @@ func newDocTableUnmergeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "unmerge",
 		Short: "取消合并单元格",
+		Long: `取消合并单元格。--row/--col 指向合并区域内的任意单元格即可。
+
+示例:
+  feishu-docs-cli doc update table unmerge -d <DOC> -t <TABLE_ID> --row 1 --col 0`,
 		Run: func(cmd *cobra.Command, args []string) {
 			documentID = resolveDocumentID(documentID)
 			if err := patchTableBlock(documentID, tableID, larkdocx.NewUpdateBlockRequestBuilder().

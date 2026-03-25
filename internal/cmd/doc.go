@@ -15,7 +15,25 @@ func newDocCmd() *cobra.Command {
 	docCmd := &cobra.Command{
 		Use:   "doc",
 		Short: "文档管理",
-		Long:  "管理飞书新版文档(Docx)，支持创建、查看、插入、编辑、删除等操作。",
+		Long: `管理飞书新版文档(Docx)，支持创建、查看、插入、编辑、删除等操作。
+所有 --doc-id / -i 参数均可直接传入 wiki 链接。
+
+读取命令:
+  content   获取纯文本内容（快速了解文档内容）
+  blocks    列出所有块的 JSON（获取 block_id、block_type、children 结构）
+  block     获取单个块详情
+  get       获取文档元信息
+
+写入命令:
+  update append       Markdown 追加（文本/标题/列表/代码块）
+  update table create 创建表格
+  update insert       插入单个文本块
+  update set-text     更新已有文本块
+  update delete       删除子块
+
+常见 block_type:
+  1=page  2=text  3~11=heading1~9  12=bullet  13=ordered
+  14=code  17=todo  22=divider  31=table  32=table_cell`,
 	}
 
 	docCmd.AddCommand(

@@ -25,7 +25,27 @@ func newDocUpdateCmd() *cobra.Command {
 	updateCmd := &cobra.Command{
 		Use:   "update",
 		Short: "统一文档写操作",
-		Long:  "统一管理文档写操作，包括 Markdown 追加、文本块插入与更新、块删除以及表格编辑。",
+		Long: `统一管理文档写操作，包括 Markdown 追加、文本块插入与更新、块删除以及表格编辑。
+
+子命令速查:
+  append       Markdown 追加（文本/标题/列表/代码块/分割线）
+  table create 创建表格并填充数据
+  table show   查看表格内容（json/tsv/table 格式）
+  table write  重写整张表格
+  table set-cell  更新单个单元格
+  table insert-row/insert-column  插入行/列
+  table delete-rows/delete-columns  删除行/列
+  table merge/unmerge  合并/取消合并单元格
+  table props  更新表格属性（标题行/列、列宽）
+  insert       插入单个文本块（可指定类型）
+  set-text     更新已有文本块内容
+  delete       删除子块（按索引范围）
+
+使用流程（AI Agent 推荐）:
+  1. doc content  → 读取文档当前内容
+  2. doc blocks   → 获取块结构（block_id, children 数量）
+  3. update delete → 清空旧内容（需要 root block_id）
+  4. update append + table create 交替调用 → 重建文档`,
 	}
 
 	updateCmd.AddCommand(
@@ -50,17 +70,40 @@ func newDocUpdateAppendCmd() *cobra.Command {
 --doc-id 支持直接传入 wiki 链接，自动解析为文档 ID。
 --markdown 传入 - 可从 stdin 管道读取内容。
 
-支持的 Markdown 语法:
-  # ~ ###### 标题 (heading1 ~ heading6)
-  - 无序列表 / * 无序列表
+支持的块级 Markdown 语法:
+  # ~ ######   标题 (heading1 ~ heading6)
+  - / *         无序列表
+  1.            有序列表
+  [ ] / [x]    待办事项
+  >             引用（多行聚合为多个 text 块）
+  --- *** ___  分割线
+  ` + "```" + `           代码块（不保留语言标识）
+  其他          纯文本
+
+不支持的行内语法（会作为字面字符保留）:
+  **加粗** *斜体* [链接](url) ` + "`行内代码`" + ` ![图片](url)
+  | 表格 | 列 |   → 用 table create 代替
+
+替代方案: 用 #### 四级标题代替加粗；关键信息放表格标题行（自动加粗）
+
+单次上限约 50 块，超出报 99992402 错误。拆分为多次调用，每次 ≤ 45 块。
+
+示例:
+  # 从 stdin 管道输入
+  cat <<'MD' | feishu-docs-cli doc update append -d <DOC> --markdown -
+  # 一级标题
+  ## 二级标题
+  正文段落
+  - 列表项 1
+  - 列表项 2
   1. 有序列表
-  [ ] 待办事项 / [x] 已完成待办
-  > 引用（支持多行）
-  --- / *** / ___ 分割线
-  ` + "```" + `
-  多行代码块
-  ` + "```" + `
-  普通文本`,
+  [ ] 待办
+  [x] 已完成
+  ---
+  MD
+
+  # 直接传入（短文本）
+  feishu-docs-cli doc update append -d <DOC> --markdown "# 标题"`,
 		Run: func(cmd *cobra.Command, args []string) {
 			documentID = resolveDocumentID(documentID)
 			if blockID == "" {
@@ -219,7 +262,21 @@ func newDocUpdateDeleteCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete",
 		Short: "删除指定范围的子块",
-		Long:  "删除指定父块下指定范围的子块。",
+		Long: `删除指定父块下指定范围的子块。索引为左闭右开 [start, end)。
+
+注意: --block-id 必须是实际的块 ID（如 items[0].block_id），不能用 wiki 链接。
+      --doc-id 可以用 wiki 链接。
+
+获取 block-id 和子块总数:
+  feishu-docs-cli doc blocks -i <DOC> | python3 -c "
+    import json,sys; d=json.load(sys.stdin)
+    root=d['items'][0]
+    print('block_id:', root['block_id'])
+    print('children:', len(root.get('children',[])))
+  "
+
+清空文档所有内容:
+  feishu-docs-cli doc update delete -d <DOC> -b <ROOT_BLOCK_ID> --start 0 --end <子块总数>`,
 		Run: func(cmd *cobra.Command, args []string) {
 			documentID = resolveDocumentID(documentID)
 			req := larkdocx.NewBatchDeleteDocumentBlockChildrenReqBuilder().
